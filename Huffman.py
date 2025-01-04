@@ -2,13 +2,19 @@ import os
 
 # obliczenie ile razy występuje dany znak
 def calculate_frequencies(text):
-    frequencies = {}
+    frequencies = []
+
     for char in text:
-        if char in frequencies:
-            frequencies[char] += 1
-        else:
-            frequencies[char] = 1
-    return list(frequencies.items())
+        found = False
+        # tworzenie par: (znak, liczba_wystąpień)
+        for i in range(len(frequencies)):
+            if frequencies[i][0] == char:
+                frequencies[i] = (frequencies[i][0], frequencies[i][1] + 1)
+                found = True
+                break
+        if not found:
+            frequencies.append((char, 1))
+    return frequencies
 
 def heapify(heap, n, i):
     smallest = i
@@ -32,14 +38,7 @@ def build_min_heap(arr):
 
 def insert_into_queue(Q, node):
     Q.append(node)
-    i = len(Q) - 1
-    while i > 0:
-        parent = (i - 1) // 2
-        if Q[i]['freq'] < Q[parent]['freq']:
-            Q[i], Q[parent] = Q[parent], Q[i]
-            i = parent
-        else:
-            break
+    build_min_heap(Q)
 
     # if node['label'] is None:
     #     label = f"'{node['left']['label']}{node['right']['label']}'"
@@ -51,15 +50,18 @@ def pop_from_queue(Q):
     n = len(Q)
     if n == 0:
         return None
-    if n == 1:
-        return Q.pop(0)
+    # root - najmniejszy element
     root = Q[0]
-    Q[0] = Q.pop()
-    heapify(Q, len(Q), 0)
+    if n > 1:
+        Q[0] = Q.pop()
+        heapify(Q, len(Q), 0)
+    else:
+        Q.pop(0)
     return root
 
 def build_priority_queue(frequencies):
     Q = []
+    # tworzenie węzłów
     for char, freq in frequencies:
         Q.append({
             'label': char,
@@ -102,25 +104,27 @@ def build_tree(Q):
 
     return Q[0]
 
-def generate_codes(node, current_code='', codes=None):
+def generate_codes(node, current_code="", codes=None):
     if codes is None:
         codes = []
 
-    # jeśli węzeł jest liściem (ma znak) - zapisujemy jego kod
+    # jeśli węzeł jest liściem - nie ma dzieci
     if node['left'] is None and node['right'] is None:
-        codes.append((node['label'], current_code if current_code else '0'))
+        if current_code:
+            codes.append((node['label'], current_code))
+        else:
+            codes.append((node['label'], 0))
     else:
-        # przejście rekurencyjne przez lewe (0) i prawe (1) poddrzewo
+        # przechodzi rekurencyjnie przez lewe i prawe poddrzewo
         if node['left']:
             generate_codes(node['left'], current_code + '0', codes)
         if node['right']:
             generate_codes(node['right'], current_code + '1', codes)
 
-    return codes
+    return dict(codes)
 
 def encoding(text, codes):
     encoded = ""
-    codes = dict(codes)
     for char in text:
         encoded += codes[char]
     return encoded
@@ -145,38 +149,54 @@ def decoding(encoded_text, root):
     return decoded
 
 def build_tree_from_codes(codes):
-    root = {'label': None, 'left': None, 'right': None}
+    # stworzenie pustego korzenia
+    root = {
+        'label': None,
+        'left': None,
+        'right': None
+    }
 
     for char, code in codes.items():
         current = root
-
-        for bit in code[:-1]:  # Process all bits except the last one
+        for bit in code:
+            # idzie na lewo po drzewie
             if bit == '0':
                 if current['left'] is None:
-                    current['left'] = {'label': None, 'left': None, 'right': None}
+                    # stworzenie lewego dziecka
+                    current['left'] = {
+                        'label': None,
+                        'left': None,
+                        'right': None
+                    }
                 current = current['left']
             else:
+                # idzie na prawo po drzewie
                 if current['right'] is None:
-                    current['right'] = {'label': None, 'left': None, 'right': None}
+                    # stworzenie prawego dziecka
+                    current['right'] = {
+                        'label': None,
+                        'left': None,
+                        'right': None
+                    }
+                # przejście do prawego dziecka
                 current = current['right']
-
-        # Process the last bit and add the character
-        if code[-1] == '0':
-            current['left'] = {'label': char, 'left': None, 'right': None}
-        else:
-            current['right'] = {'label': char, 'left': None, 'right': None}
-
+        current['label'] = char
     return root
 
 def read_encoded_file(filename):
+    # rb - otworzenie pliku w trybie binarnym
     with open(filename, 'rb') as f:
-        header = b""
-        while not header.endswith(b"\n\n"):
-            header += f.read(1)
-        header = header.decode('utf-8').strip()
+        # odczytanie nagłówka z kodami
+        header_bytes = b""
+        while not header_bytes.endswith(b"\n\n"):
+            header_bytes += f.read(1)
+        # dekoduje z postaci binarnej na tekst
+        header_text = header_bytes.decode('utf-8').strip()
+        # stworzenie słownika z kodami
         codes = {}
-        for line in header.split():
+        for line in header_text.split():
             char, code = line.split(":")
+            # znaki specjalne
             if char == "\\s":
                 char = ' '
             elif char == "\\n":
@@ -189,18 +209,31 @@ def read_encoded_file(filename):
                 char = eval("'" + char + "'")
             codes[char] = code
 
+
+        # odczytanie wypełnienia
         padding = f.read(1)[0]
-        bits = f.read()
-        encoded = ''.join(format(byte, '08b') for byte in bits)
+        # odczytanie zakodowanego tekstu
+        encoded_bytes = f.read()
 
-        if padding > 0:
-            binary_str = encoded[:-padding]
+        # formatuje bajty do ciągu 0 i 1 oraz łączy te ciągi
+        encoded_bits = ''
+        for byte in encoded_bytes:
+            # zamiana bajtu na 8 bitów
+            bits = format(byte, '08b')
+            encoded_bits += bits
 
-        return codes, binary_str
+        # usunięcie wypełnienia
+        if padding == 0:
+            encoded_string = encoded_bits
+        else:
+            encoded_string = encoded_bits[:-padding]
+
+        return codes, encoded_string
 
 def save_encoded_file(filename, codes, encoded_text):
-    output_filename = f"{os.path.splitext(filename)[0]}-zaszyfrowane.txt"
+    output_filename = f"szyfr-{os.path.splitext(filename)[0]}.txt"
 
+    # stworzenie nagłówka z kodami
     header = ""
     for char, code in codes.items():
         if char == ' ':
@@ -216,25 +249,45 @@ def save_encoded_file(filename, codes, encoded_text):
         header += f"{char_repr}:{code} "
     header += "\n\n"
 
+    # obliczenie ile zer trzeba dodać na koniec pliku
     padding = 8 - (len(encoded_text) % 8)
+    if padding == 8:
+        padding = 0
     encoded_text += "0" * padding
 
-    bits = bytearray(int(encoded_text[i:i + 8], 2) for i in range(0, len(encoded_text), 8))
+    # zamiana ciągu 0 i 1 na bajty
+    encoded_bytes = bytearray()
+    for i in range(0, len(encoded_text), 8):
+        # wycina 8 bitów
+        byte = encoded_text[i:i + 8]
+        # zamienia na liczbę i dodaje do tablicy
+        encoded_bytes.append(int(byte, 2))
 
-    with open(output_filename, 'wb') as f:
-        f.write(header.encode('utf-8'))
-        f.write(bytes([padding]))
-        f.write(bits)
+    # zapisanie do pliku
+    try:
+        with open(output_filename, 'wb') as f:
+            # czytelny nagłówek
+            f.write(header.encode('utf-8'))
+            # informacja o wielkości wypełnienia
+            f.write(bytes([padding]))
+            # nieczytelna reszta - zakodowane dane
+            f.write(encoded_bytes)
+    except Exception as e:
+        print(f"Nie udało się zapisać pliku {output_filename}. Błąd: {e}")
+        return None
 
     return output_filename
 
 def save_decoded_file(decoded_text, filename):
-    output_filename = f"{os.path.splitext(filename)[0].replace('-zaszyfrowane', '')}-odszyfrowane.txt"
+    output_filename = f"deszyfr-{os.path.splitext(filename)[0].replace('szyfr-', '')}.txt"
+
     try:
         with open(output_filename, 'w', encoding='utf-8') as file:
             file.write(decoded_text)
-    except:
-        print(f"Nie udało się zapisać pliku {output_filename}")
+    except Exception as e:
+        print(f"Nie udało się zapisać pliku {output_filename}. Błąd: {e}")
+        return None
+
     return output_filename
 
 def process_file(filename, mode):
@@ -242,8 +295,8 @@ def process_file(filename, mode):
         try:
             with open(filename, 'r', encoding='utf-8') as file:
                 text = file.read()
-        except:
-            print(f"Nie udało się otworzyć pliku {filename}")
+        except Exception as e:
+            print(f"Nie udało się otworzyć pliku {filename}. Błąd: {e}")
             return
 
         if len(text) == 0:
@@ -253,32 +306,28 @@ def process_file(filename, mode):
         frequencies = calculate_frequencies(text)
         queue = build_priority_queue(frequencies)
         root = build_tree(queue)
-        codes = dict(generate_codes(root))
+        codes = generate_codes(root)
         encoded_text = encoding(text, codes)
-        print(f"Długość zakodowanego tekstu: {len(encoded_text)} bitów")
         output_filename = save_encoded_file(filename, codes, encoded_text)
-        print(f"Zapisano zaszyfrowany plik jako: {output_filename}")
+        if output_filename is not None:
+            print(f"Zapisano zaszyfrowany plik jako: {output_filename}")
 
     elif mode == 'decrypt':
-        try:
-            codes, encoded_text = read_encoded_file(filename)
-        except:
-            print(f"Nie udało się odczytać pliku {filename}")
-            return
-
+        codes, encoded_text = read_encoded_file(filename)
         root = build_tree_from_codes(codes)
         decoded_text = decoding(encoded_text, root)
         output_filename = save_decoded_file(decoded_text, filename)
-        print(f"Zapisano odszyfrowany plik jako: {output_filename}")
+        if output_filename is not None:
+            print(f"Zapisano odszyfrowany plik jako: {output_filename}")
 
 while True:
-    choice = input("Co chcesz zrobić: szyfruj (s) / deszyfruj (d) / zakończ (z): ").strip().lower()
+    choice = input("Wybierz: szyfruj (s) / deszyfruj (d) / zakończ (z): ").strip().lower()
     if choice == 'z':
         break
     elif choice in ('s', 'd'):
         number_of_files = 0
         while number_of_files <= 0:
-            user_input = input("Podaj liczbę plików do przetworzenia: ")
+            user_input = input("Podaj liczbę plików: ")
             if user_input.isdigit():
                 number_of_files = int(user_input)
                 if number_of_files <= 0:
@@ -286,9 +335,9 @@ while True:
             else:
                 print("Liczba plików musi być całkowita")
 
-        for i in range(1, number_of_files + 1):
+        for i in range(number_of_files):
             while True:
-                filename = input(f"Podaj nazwę pliku {i}: ").strip()
+                filename = input(f"Podaj nazwę pliku {i+1}: ").strip()
                 if os.path.exists(filename):
                     if choice == 's':
                         process_file(filename, 'encrypt')
