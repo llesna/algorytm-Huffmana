@@ -16,28 +16,30 @@ def calculate_frequencies(text):
             frequencies.append((char, 1))
     return frequencies
 
-def heapify(heap, n, i):
+def min_heapify(A, n, i):
     smallest = i
-    left = 2 * i + 1
-    right = 2 * i + 2
+    l = 2 * i + 1
+    r = 2 * i + 2
 
-    if left < n and heap[left]['freq'] < heap[smallest]['freq']:
-        smallest = left
+    if l < n and A[l]['freq'] < A[smallest]['freq']:
+        smallest = l
 
-    if right < n and heap[right]['freq'] < heap[smallest]['freq']:
-        smallest = right
+    if r < n and A[r]['freq'] < A[smallest]['freq']:
+        smallest = r
 
     if smallest != i:
-        heap[i], heap[smallest] = heap[smallest], heap[i]
-        heapify(heap, n, smallest)
+        A[i], A[smallest] = A[smallest], A[i]
+        min_heapify(A, n, smallest)
 
-def build_min_heap(arr):
-    n = len(arr)
+def build_min_heap(A):
+    n = len(A)
     for i in range(n // 2 - 1, -1, -1):
-        heapify(arr, n, i)
+        min_heapify(A, n, i)
 
 def insert_into_queue(Q, node):
+    # dodanie na koniec kolejki
     Q.append(node)
+    # naprawienie kolejki
     build_min_heap(Q)
 
     # if node['label'] is None:
@@ -46,15 +48,18 @@ def insert_into_queue(Q, node):
     #     label = f"'{node['label']}'"
     # print(f"Insert(Q, {label}:{node['freq']})")
 
-def pop_from_queue(Q):
+def delete_from_queue(Q):
     n = len(Q)
+    # jeśli kopiec jest pusty
     if n == 0:
         return None
     # root - najmniejszy element
     root = Q[0]
     if n > 1:
+        # zamienia pierwszy z ostatnim elementem
         Q[0] = Q.pop()
-        heapify(Q, len(Q), 0)
+        # naprawia kopiec
+        min_heapify(Q, len(Q), 0)
     else:
         Q.pop(0)
     return root
@@ -62,16 +67,18 @@ def pop_from_queue(Q):
 def build_priority_queue(frequencies):
     Q = []
     # tworzenie węzłów
-    for char, freq in frequencies:
+    for char, frequency in frequencies:
         Q.append({
+            # etykieta
             'label': char,
-            'freq': freq,
+            'freq': frequency,
             'left': None,
             'right': None
         })
     build_min_heap(Q)
     return Q
 
+# wyświetlanie kolejki w mniej więcej takim formacie jak na wykładzie
 def print_queue(Q):
     print("Q: ", end="")
     for node in Q:
@@ -85,13 +92,20 @@ def print_queue(Q):
 def build_tree(Q):
     while len(Q) > 1:
         # print_queue(Q)
-        x = pop_from_queue(Q)
+
+        # pobranie węzła o najmniejszej liczbie wystąpień (częstości)
+        x = delete_from_queue(Q)
+
         # print(f"z.left = '{node1['label']}':{node1['freq']}")
         # print_queue(Q)
-        y = pop_from_queue(Q)
+
+        # pobranie kolejnego węzła o najmn. licz. wystąpień
+        y = delete_from_queue(Q)
+
         # print(f"z.right = '{node2['label']}':{node2['freq']}")
         # print_queue(Q)
 
+        # połączenie tych węzłów
         new_node = {
             'label': f"{x['label']}{y['label']}",
             'freq': x['freq'] + y['freq'],
@@ -102,17 +116,19 @@ def build_tree(Q):
         insert_into_queue(Q, new_node)
         # print()
 
+    # zwraca korzeń
     return Q[0]
 
-def generate_codes(node, current_code="", codes=None):
-    if codes is None:
-        codes = []
-
-    # jeśli węzeł jest liściem - nie ma dzieci
+# generowanie kodów Huffmana
+# codes - pary: (znak, kod Huffmana)
+def generate_codes(node, current_code, codes):
+    # jeśli węzeł jest liściem
     if node['left'] is None and node['right'] is None:
+        # current_code - kod tworzony podczas przechodzenia od korzenia do węzła
         if current_code:
             codes.append((node['label'], current_code))
         else:
+            # drzewo z jednym węzłem
             codes.append((node['label'], 0))
     else:
         # przechodzi rekurencyjnie przez lewe i prawe poddrzewo
@@ -123,20 +139,25 @@ def generate_codes(node, current_code="", codes=None):
 
     return dict(codes)
 
+# koduje tekst na podstawie kodów Huffmana
 def encoding(text, codes):
     encoded = ""
     for char in text:
         encoded += codes[char]
+    # zwraca ciąg zer i jedynek
     return encoded
 
+# dekoduje na podstawie drzewa
 def decoding(encoded_text, root):
     decoded = ""
     current_node = root
 
     for bit in encoded_text:
         if bit == '0':
+            # przechodzi do lewego dziecka
             current_node = current_node['left']
         else:
+            # przechodzi do prawego dziecka
             current_node = current_node['right']
 
         # dotarcie do liścia
@@ -148,6 +169,7 @@ def decoding(encoded_text, root):
 
     return decoded
 
+# zbudowanie drzewa na podstawie kodów Huffmana
 def build_tree_from_codes(codes):
     # stworzenie pustego korzenia
     root = {
@@ -168,6 +190,7 @@ def build_tree_from_codes(codes):
                         'left': None,
                         'right': None
                     }
+                # przejście do lewego dziecka
                 current = current['left']
             else:
                 # idzie na prawo po drzewie
@@ -180,55 +203,51 @@ def build_tree_from_codes(codes):
                     }
                 # przejście do prawego dziecka
                 current = current['right']
+        # ustawienie label w liściu na odpowiedni znak
         current['label'] = char
     return root
 
 def read_encoded_file(filename):
-    # rb - otworzenie pliku w trybie binarnym
-    with open(filename, 'rb') as f:
-        # odczytanie nagłówka z kodami
-        header_bytes = b""
-        while not header_bytes.endswith(b"\n\n"):
-            header_bytes += f.read(1)
-        # dekoduje z postaci binarnej na tekst
-        header_text = header_bytes.decode('utf-8').strip()
-        # stworzenie słownika z kodami
-        codes = {}
-        for line in header_text.split():
-            char, code = line.split(":")
-            # znaki specjalne
-            if char == "\\s":
-                char = ' '
-            elif char == "\\n":
-                char = '\n'
-            elif char == "\\t":
-                char = '\t'
-            elif char == "\\r":
-                char = '\r'
-            else:
-                char = eval("'" + char + "'")
-            codes[char] = code
+    # otworzenie pliku w trybie binarnym
+    encoded_file = open(filename, 'rb')
 
+    # odczytanie nagłówka z kodami
+    header_bytes = b""
+    while not header_bytes.endswith(b"\n\n"):
+        header_bytes += encoded_file.read(1)
+    # dekoduje z postaci binarnej na tekst
+    header_text = header_bytes.decode('utf-8').strip()
 
-        # odczytanie wypełnienia
-        padding = f.read(1)[0]
-        # odczytanie zakodowanego tekstu
-        encoded_bytes = f.read()
-
-        # formatuje bajty do ciągu 0 i 1 oraz łączy te ciągi
-        encoded_bits = ''
-        for byte in encoded_bytes:
-            # zamiana bajtu na 8 bitów
-            bits = format(byte, '08b')
-            encoded_bits += bits
-
-        # usunięcie wypełnienia
-        if padding == 0:
-            encoded_string = encoded_bits
+    # stworzenie słownika z kodami
+    codes = {}
+    for line in header_text.split():
+        char, code = line.split(":")
+        # zamienia reprezentację znaku na rzeczywisty znak
+        if char == "\\s":
+            char = ' '
         else:
-            encoded_string = encoded_bits[:-padding]
+            char = eval("'" + char + "'")
+        codes[char] = code
 
-        return codes, encoded_string
+    # odczytanie ile dodatkowych zer dodano na końcu zakodowanego tekstu
+    extra_zeros = encoded_file.read(1)[0]
+    # odczytanie zakodowanego tekstu
+    encoded_bytes = encoded_file.read()
+
+    # formatuje bajty do ciągu 0 i 1 oraz łączy te ciągi
+    encoded_bits = ''
+    for byte in encoded_bytes:
+        # zamiana bajtu na 8 bitowy ciąg binarny
+        bits = format(byte, '08b')
+        encoded_bits += bits
+
+    # usunięcie dodatkowych zer
+    if extra_zeros == 0:
+        encoded_string = encoded_bits
+    else:
+        encoded_string = encoded_bits[:-extra_zeros]
+
+    return codes, encoded_string
 
 def save_encoded_file(filename, codes, encoded_text):
     output_filename = f"szyfr-{os.path.splitext(filename)[0]}.txt"
@@ -237,39 +256,33 @@ def save_encoded_file(filename, codes, encoded_text):
     header = ""
     for char, code in codes.items():
         if char == ' ':
-            char_repr = "\\s"
-        elif char == '\n':
-            char_repr = "\\n"
-        elif char == '\t':
-            char_repr = "\\t"
-        elif char == '\r':
-            char_repr = "\\r"
+            char = "\\s"
         else:
-            char_repr = repr(char)[1:-1]
-        header += f"{char_repr}:{code} "
+            char = repr(char)[1:-1]
+        header += f"{char}:{code} "
     header += "\n\n"
 
-    # obliczenie ile zer trzeba dodać na koniec pliku
-    padding = 8 - (len(encoded_text) % 8)
-    if padding == 8:
-        padding = 0
-    encoded_text += "0" * padding
+    # obliczenie ile zer trzeba dodać na koniec pliku do wyrównania do pełnych bajtów
+    extra_zeros = 8 - (len(encoded_text) % 8)
+    if extra_zeros == 8:
+        extra_zeros = 0
+    encoded_text += "0" * extra_zeros
 
-    # zamiana ciągu 0 i 1 na bajty
+    # zamiana ciągu 0 i 1 na tablicę bajtów
     encoded_bytes = bytearray()
     for i in range(0, len(encoded_text), 8):
         # wycina 8 bitów
         byte = encoded_text[i:i + 8]
-        # zamienia na liczbę i dodaje do tablicy
+        # zamienia na liczbę całkowitą i dodaje do tablicy
         encoded_bytes.append(int(byte, 2))
 
     # zapisanie do pliku
     try:
         with open(output_filename, 'wb') as f:
-            # czytelny nagłówek
+            # nagłowek zakodowany w utf-8, aby przy dekodowaniu były poprawne polskie znaki
             f.write(header.encode('utf-8'))
-            # informacja o wielkości wypełnienia
-            f.write(bytes([padding]))
+            # zapisanie liczby dodatkowych zer
+            f.write(bytes([extra_zeros]))
             # nieczytelna reszta - zakodowane dane
             f.write(encoded_bytes)
     except Exception as e:
@@ -282,8 +295,9 @@ def save_decoded_file(decoded_text, filename):
     output_filename = f"deszyfr-{os.path.splitext(filename)[0].replace('szyfr-', '')}.txt"
 
     try:
-        with open(output_filename, 'w', encoding='utf-8') as file:
-            file.write(decoded_text)
+        file = open(output_filename, 'w', encoding='utf-8')
+        file.write(decoded_text)
+        file.close()
     except Exception as e:
         print(f"Nie udało się zapisać pliku {output_filename}. Błąd: {e}")
         return None
@@ -291,10 +305,13 @@ def save_decoded_file(decoded_text, filename):
     return output_filename
 
 def process_file(filename, mode):
+    # szyfrowanie
     if mode == 'encrypt':
         try:
-            with open(filename, 'r', encoding='utf-8') as file:
-                text = file.read()
+            # musi otwierać w utf-8 przez polskie znaki
+            file = open(filename, 'r', encoding='utf-8')
+            text = file.read()
+            file.close()
         except Exception as e:
             print(f"Nie udało się otworzyć pliku {filename}. Błąd: {e}")
             return
@@ -306,12 +323,14 @@ def process_file(filename, mode):
         frequencies = calculate_frequencies(text)
         queue = build_priority_queue(frequencies)
         root = build_tree(queue)
-        codes = generate_codes(root)
+        codes = []
+        codes = generate_codes(root, "", codes)
         encoded_text = encoding(text, codes)
         output_filename = save_encoded_file(filename, codes, encoded_text)
         if output_filename is not None:
             print(f"Zapisano zaszyfrowany plik jako: {output_filename}")
 
+    # deszyfrowanie
     elif mode == 'decrypt':
         codes, encoded_text = read_encoded_file(filename)
         root = build_tree_from_codes(codes)
@@ -322,8 +341,10 @@ def process_file(filename, mode):
 
 while True:
     choice = input("Wybierz: szyfruj (s) / deszyfruj (d) / zakończ (z): ").strip().lower()
+
     if choice == 'z':
         break
+
     elif choice in ('s', 'd'):
         number_of_files = 0
         while number_of_files <= 0:
