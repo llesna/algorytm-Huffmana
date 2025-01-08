@@ -295,8 +295,6 @@ def save_encoded_file(filename, codes, encoded_text):
 def save_decoded_file(decoded_text, filename):
     # zamiana "szyfr-" na początku pliku na "deszyfr-"
     output_filename = f"de{filename}"
-    # zamiana \n na \r\n windowsowe lub \n linuxowe
-    decoded_text = decoded_text.replace("\n", os.linesep)
 
     try:
         file = open(output_filename, 'w', encoding='utf-8')
@@ -315,8 +313,6 @@ def process_file(filename, mode):
             # musi otwierać w utf-8 przez polskie znaki
             file = open(filename, 'r', encoding='utf-8')
             text = file.read()
-            # zamiana windowsowego \r\n na linuxowe \n
-            text = text.replace("\r\n", "\n")
             file.close()
         except Exception as e:
             print(f"Nie udało się otworzyć pliku {filename}. Błąd: {e}")
