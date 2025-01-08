@@ -250,7 +250,7 @@ def read_encoded_file(filename):
     return codes, encoded_string
 
 def save_encoded_file(filename, codes, encoded_text):
-    output_filename = f"szyfr-{os.path.splitext(filename)[0]}.txt"
+    output_filename = f"szyfr-{filename}"
 
     # stworzenie nagłówka z kodami
     header = ""
@@ -278,13 +278,14 @@ def save_encoded_file(filename, codes, encoded_text):
 
     # zapisanie do pliku
     try:
-        with open(output_filename, 'wb') as f:
-            # nagłowek zakodowany w utf-8, aby przy dekodowaniu były poprawne polskie znaki
-            f.write(header.encode('utf-8'))
-            # zapisanie liczby dodatkowych zer
-            f.write(bytes([extra_zeros]))
-            # nieczytelna reszta - zakodowane dane
-            f.write(encoded_bytes)
+        file = open(output_filename, 'wb')
+        # nagłowek zakodowany w utf-8, aby przy dekodowaniu były poprawne polskie znaki
+        file.write(header.encode('utf-8'))
+        # zapisanie liczby dodatkowych zer
+        file.write(bytes([extra_zeros]))
+        # nieczytelna reszta - zakodowane dane
+        file.write(encoded_bytes)
+        file.close()
     except Exception as e:
         print(f"Nie udało się zapisać pliku {output_filename}. Błąd: {e}")
         return None
@@ -292,7 +293,10 @@ def save_encoded_file(filename, codes, encoded_text):
     return output_filename
 
 def save_decoded_file(decoded_text, filename):
-    output_filename = f"deszyfr-{os.path.splitext(filename)[0].replace('szyfr-', '')}.txt"
+    # zamiana "szyfr-" na początku pliku na "deszyfr-"
+    output_filename = f"de{filename}"
+    # zamiana \n na \r\n windowsowe lub \n linuxowe
+    decoded_text = decoded_text.replace("\n", os.linesep)
 
     try:
         file = open(output_filename, 'w', encoding='utf-8')
@@ -311,13 +315,11 @@ def process_file(filename, mode):
             # musi otwierać w utf-8 przez polskie znaki
             file = open(filename, 'r', encoding='utf-8')
             text = file.read()
+            # zamiana windowsowego \r\n na linuxowe \n
+            text = text.replace("\r\n", "\n")
             file.close()
         except Exception as e:
             print(f"Nie udało się otworzyć pliku {filename}. Błąd: {e}")
-            return
-
-        if len(text) == 0:
-            print("Plik jest pusty")
             return
 
         frequencies = calculate_frequencies(text)
